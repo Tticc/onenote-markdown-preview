@@ -1,10 +1,38 @@
 # OneNote 局部 Markdown 格式化预览
 
-> 预览状态（2026-10-18）：宿主退出残留问题已修复并多次复验通过；真实宿主功能验收（转换、一次撤销、剪贴板来源、跳过提示）已通过。仍为**手动加载预览**（LoadBehavior=0，每次启动需在 OneNote 的 COM 加载项对话框勾选）。**已于 2026-10-18 在本人机器执行正式安装**（HKCU 单用户）并验证 `STATE=REGISTERED`；`LoadBehavior=3`（自动加载）仍未授权，也不要使用旧探针脚本绕过集中验收。
+> 预览状态（2026-10-18）：宿主退出残留问题已修复并多次复验通过；真实宿主功能验收（转换、一次撤销、剪贴板来源、跳过提示）已通过。仍为**手动加载预览**（LoadBehavior=0，每次启动需在 OneNote 的 COM 加载项对话框勾选）。**已在开发机执行正式安装**（HKCU 单用户）并验证 `STATE=REGISTERED`；`LoadBehavior=3`（自动加载）仍未授权，也不要使用旧探针脚本绕过集中验收。
 
-Windows x64 / OneNote 桌面 COM Add-in。当前是**仅离线构建的预览代码**，尚未通过完整交付验收，不应安装到日常使用环境。构建不会注册插件、启动 OneNote 或操作剪贴板。
+Windows x64 / OneNote 桌面 COM Add-in。**本项目只发布源码，不提供预编译 Release**；其他人拿到仓库后需要在本机构建（见下）。构建过程不会注册插件、启动 OneNote 或操作剪贴板。
 
 用户使用说明见 [`usage.md`](usage.md)。
+
+## 获取与安装（从源码）
+
+**先决条件**
+
+- Windows x64。
+- .NET Framework 4.x（提供 `%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe`），目标 .NET Framework 4.8。
+- 已安装**桌面版 OneNote**：构建需要其 PIA（`Extensibility.dll`、`office.dll`、`Microsoft.Office.Interop.OneNote.dll`）存在于 GAC。
+- 首次构建可访问 nuget.org（下载固定版本依赖到 `.packages/`）。
+- 64 位 Windows PowerShell。
+
+**步骤**
+
+```powershell
+git clone https://github.com/Tticc/onenote-markdown-preview.git
+cd onenote-markdown-preview
+.\build.ps1 -Test                 # 构建 + 离线测试，产出 artifacts\preview\
+.\tools\Install-Addin.ps1 -DryRun # 先查看会写哪些注册表键（不做改动）
+.\tools\Install-Addin.ps1         # 注册（要求 OneNote 已完全退出）
+```
+
+然后在**桌面版** OneNote 中打开 `文件 → 选项 → 加载项 → 管理[COM 加载项] → 转到`，勾选 **OneNote Markdown Preview (manual load)**；切到 **Markdown 预览** 选项卡点 **启用**，此后 `Ctrl+Shift+D` 生效。
+
+- 注册为**手动加载**（`LoadBehavior=0`），每次启动 OneNote 都需重新勾选；这是有意设计，不要改为 `LoadBehavior=3`。
+- 从开始菜单或商店图标启动的是**商店/UWP 版 OneNote**，它永远不会加载本 COM 加载项；请启动桌面版可执行文件。
+- 卸载 `.\tools\Install-Addin.ps1 -Uninstall`，状态查询 `-Verify`。仅影响当前用户（HKCU），不写 HKLM。
+- PowerShell 若拒绝执行脚本：`powershell -ExecutionPolicy Bypass -File .\build.ps1 -Test`。
+- 需要分发 zip 时用 `.\tools\Package-Release.ps1`（见文末）。
 
 ## 离线构建与自检
 
@@ -14,7 +42,7 @@ Windows x64 / OneNote 桌面 COM Add-in。当前是**仅离线构建的预览代
 .\build.ps1 -Test
 ```
 
-使用本机 .NET Framework 4.x 编译器、Office 15 PIA（当前 Office 16 安装提供），目标 x64、.NET Framework 4.8 环境。不要求 .NET SDK。首次构建下载固定 NuGet 版本到 `.packages/`，结果输出到 `artifacts/preview/`。运行阶段无网络访问。Markdig 使用 BSD-2-Clause，System.* 依赖各自许可证随原 NuGet 包保留在缓存；正式分发前需整理许可证文件。
+使用本机 .NET Framework 4.x 编译器、Office 15 PIA（当前 Office 16 安装提供），目标 x64、.NET Framework 4.8 环境。不要求 .NET SDK。首次构建下载固定 NuGet 版本到 `.packages/`，结果输出到 `artifacts/preview/`。运行阶段无网络访问。Markdig 使用 BSD-2-Clause，System.* 依赖各自许可证；许可证整理与随包分发见文末与 `THIRD-PARTY-NOTICES.md`。
 
 当前自检含真实解析器/状态测试和官方 COM/Ribbon 契约审计，不触发 OnConnection，不安装或加载宿主。旧验证工具入口为 `validation/OneNoteProbe/Run-AutomatedValidation.ps1`；不要将旧固定载荷探针误认为正式 Markdown 转换器。
 
@@ -42,9 +70,9 @@ Windows x64 / OneNote 桌面 COM Add-in。当前是**仅离线构建的预览代
 
 正式安装路径（任务 6.3）：`tools/Install-Addin.ps1`（`-DryRun` / `-Verify` / `-Uninstall`，事务式回退），步骤见 `acceptance/install.md`；回退隔离性由 `tools/Test-InstallRollback.ps1` 在 HKCU 沙箱中验证。
 
-已完成：宿主退出残留修复（多次复验通过）、真实宿主转换与一次撤销、选区严格解析修复、剪贴板来源分类与友好提示、非激活跳过提示、启动开销采样。
+已闭环（证据见 `openspec/changes/onenote-safe-markdown-addin/validation.md`）：宿主退出残留修复、`worker-exited` 幂等修复的真机复验、真实宿主转换与一次撤销、选区严格解析、剪贴板来源分类与友好提示、非激活跳过提示、安装/卸载/回退脚本（含 HKCU 沙箱隔离测试）、故障注入与恢复状态机、启动开销与空闲 CPU/内存/转换耗时。
 
-仍未闭环：安装/卸载/回退脚本（6.3）、故障注入与恢复失败持久化（1.6/5.5）、`worker-exited` 幂等修复的真机复验、外部延迟渲染来源（`gate-review.md:20`）、空闲 CPU/内存与转换耗时。通过离线测试不等于可安全发布。
+已知限制（有意保留，非缺陷）：围栏/缩进代码块本版本整段跳过、外部延迟渲染来源不验证、恢复失败与提交结果不确定的情形不承诺、代理崩溃会丢失内存快照、`LoadBehavior=3` 自动加载未实现。逐项决策见 `openspec/changes/onenote-safe-markdown-addin/gate-review.md`。
 
 一次性验收计划：`openspec/changes/onenote-safe-markdown-addin/manual-acceptance.md`。
 
