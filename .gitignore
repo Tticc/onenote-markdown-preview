@@ -1,0 +1,17 @@
+# Build outputs and downloaded dependencies
+/.packages/
+/artifacts/
+/validation/OneNoteProbe/offline/
+/validation/OneNoteProbe/*.dll
+/validation/OneNoteProbe/*.exe
+
+# Agent/tooling configuration (not part of the project)
+/.agent/
+/.agents/
+/.opencode/
+/skills-lock.json
+
+# IDE
+/.idea/
+/.vs/
+*.user
